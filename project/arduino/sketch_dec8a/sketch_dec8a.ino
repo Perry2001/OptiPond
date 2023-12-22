@@ -1,6 +1,5 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
-#include <SoftwareSerial.h>
 
 #define TFT_CS 10
 #define TFT_RST 9
@@ -11,21 +10,16 @@
 #define ECHO_PIN 3
 #define USONIC_DIV 0.034
 
-#define GSMRX 5
-#define GSMTX 6
+
 
 #define RESTART_INTERVAL 301201 // 5 minutes in milliseconds  301201
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
-SoftwareSerial mySerial(GSMTX, GSMRX);
 
 float calibration_value = 22.34 + 0.7;
 unsigned long int avgValue;
 int buf[10], temp;
-unsigned long lastSMSTime = 0;
 unsigned long lastRestartTime = 0;
-unsigned long smsCooldownStartTime = 0;
-bool smsSent = false;
 float phValue;
 int percentage;
 long distance;
@@ -37,7 +31,6 @@ void setup()
   pinMode(ECHO_PIN, INPUT);
 
   Serial.begin(9600);
-  mySerial.begin(9600);
 
   tft.initR(INITR_144GREENTAB);
   tft.fillScreen(ST7735_BLACK);
@@ -46,15 +39,6 @@ void setup()
   tft.setTextColor(ST7735_YELLOW, ST7735_BLACK);
   tft.print("Initializing...");
   delay(1000);
-
-  mySerial.println("AT");
-  updateSerial();
-  mySerial.println("AT+CSQ");
-  updateSerial();
-  mySerial.println("AT+CCID");
-  updateSerial();
-  mySerial.println("AT+CREG?");
-  updateSerial();
 
   // pH Meter Code
   measurePH();
@@ -69,12 +53,8 @@ void setup()
 
   if (phValue < 7.0 || phValue >= 8.0)
   {
-    const String message = "pH Value:" + String(phValue) + " percentage:" + String(percentage);
-    sendSMS("+639612490531", message);
     Serial.println("reading:" + String(phValue) + " " + String(percentage)); //example    reading:4.8 68
 
-    // Display SMS status on TFT
-    displaySMSStatus();
   }
 }
 
@@ -95,55 +75,7 @@ void loop()
   delay(1000);
 }
 
-void updateSerial()
-{
-  delay(500);
-  while (Serial.available())
-  {
-    mySerial.write(Serial.read());
-  }
-}
 
-void sendSMS(const char *phoneNumber, const String &message)
-{
-  mySerial.println("AT+CMGF=1"); // Set SMS mode to text (1)
-  updateSerial();
-  mySerial.print("AT+CMGS=\""); // Set the phone number you want to send an SMS to
-  mySerial.print(phoneNumber);
-  mySerial.println("\"");
-  delay(500);
-  mySerial.print(message);
-  mySerial.write(26); // Ctrl+Z to send the message
-  delay(500);
-  updateSerial();
-
-  // Wait for the response
-  int timeout = 30000; // Set a timeout value (in milliseconds)
-  unsigned long startTime = millis();
-
-  // Continue looping until "OK" is found or timeout occurs
-  while (true)
-  {
-    tft.fillScreen(ST7735_BLACK);
-    displaySMSStatus();
-    // Check if the timeout has occurred
-    if (millis() - startTime > timeout)
-    {
-      tft.fillScreen(ST7735_BLACK);
-
-        tft.setCursor(0, 70);
-        tft.setTextColor(ST7735_GREEN, ST7735_BLACK);
-        tft.print("Check Inbox. if \n didn't get any sms \n update, \n wait for 5 minutes");
-
-
-      return; // Exit the function
-    }
-
-    delay(100); // Delay before checking again
-  }
-
-  Serial.println("SMS Sent."); // Print a message indicating that the SMS has been sent
-}
 
 void measurePH()
 {
@@ -221,14 +153,4 @@ void measureDistance()
   tft.print("% \nDistance: ");
   tft.print(distance);
   tft.print(" cm");
-}
-
-void displaySMSStatus()
-{
-  tft.setCursor(0, 40);
-  tft.setTextColor(ST7735_CYAN, ST7735_BLACK);
-  tft.print("SMS Status: ");
-  tft.print("Sending...");
-  delay(3000); // Display the status for 5 seconds (adjust as needed)
-  tft.fillRect(0, 40, tft.width(), 8 * 2, ST7735_BLACK); // Clear the SMS status area
 }
