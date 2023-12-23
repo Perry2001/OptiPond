@@ -7,7 +7,6 @@ FirebaseData firebaseData;
 void setup() {
   Serial.begin(9600);
 
-
   connectToWiFi();
   connectToFirebase();
 
@@ -46,10 +45,30 @@ void loop() {
 void pushDataToFirebase(float phValue, int waterLevel) {
   String path = "/Reading";
 
-  // Push the phValue and waterLevel to Firebase under the specified path
-  if (Firebase.pushFloat(firebaseData, path + "/phValue", phValue) &&
-      Firebase.pushInt(firebaseData, path + "/WaterPercentage", waterLevel)) {
-    Serial.println("Data pushed to Firebase successfully");
+  // Create a JSON object to hold the data
+  FirebaseJson json;
+  json.add("id", "");  // Placeholder for the unique ID
+  json.add("waterPercentage", waterLevel);
+  json.add("phValue", phValue);
+
+  // Push the JSON object to Firebase under the "Readings" parent node
+  if (Firebase.pushJSON(firebaseData, path, json)) {
+    // If the push was successful, get the unique identifier
+    String uniqueID = firebaseData.pushName();
+
+    // Update the JSON object with the actual unique ID
+    json.clear();
+    json.add("id", uniqueID);
+    json.add("waterPercentage", waterLevel);
+    json.add("phValue", phValue);
+
+    // Set the updated JSON object to Firebase under the generated uniqueID
+    if (Firebase.setJSON(firebaseData, path + "/" + uniqueID, json)) {
+      Serial.println("Data pushed to Firebase successfully");
+    } else {
+      Serial.println("Failed to push data to Firebase");
+      Serial.println("Error: " + firebaseData.errorReason());
+    }
   } else {
     Serial.println("Failed to push data to Firebase");
     Serial.println("Error: " + firebaseData.errorReason());
