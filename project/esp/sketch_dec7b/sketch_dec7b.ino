@@ -4,73 +4,63 @@
 
 FirebaseData firebaseData;
 
+String nodeID = "-nmL-12312mn";
+
 void setup() {
   Serial.begin(9600);
 
   connectToWiFi();
   connectToFirebase();
 
+  nodeID = "-nmL-12312mn";
+
   Serial.println("Setup complete");
 }
 
 void loop() {
-  // Check if there is data available to read from the serial port
   if (Serial.available() > 0) {
-    // Read the incoming line
     String serialData = Serial.readStringUntil('\n');
 
-    // Print the received line
     Serial.println("Received: " + serialData);
 
-    // Parse the received data
     if (serialData.startsWith("reading:")) {
-      // Remove the "reading:" prefix
       serialData.remove(0, 8);
 
-      // Parse the float and int values
-      float phValue = serialData.substring(0, serialData.indexOf(' ')).toFloat();
-      int waterLevel = serialData.substring(serialData.indexOf(' ') + 1).toInt();
+      int separatorIndex = serialData.indexOf(' ');
+      if (separatorIndex != -1) {
+        float phValue = serialData.substring(0, separatorIndex).toFloat();
+        int waterLevel = serialData.substring(separatorIndex + 1).toInt();
 
-      // Push the values to Firebase
-      pushDataToFirebase(phValue, waterLevel);
+        updateDataInFirebase(nodeID, phValue, waterLevel);
+      } else {
+        Serial.println("Invalid data format received");
+      }
     }
   }
 
-  // Your other code can go here
-
-  // Delay to avoid excessive looping
   delay(100);
 }
 
-void pushDataToFirebase(float phValue, int waterLevel) {
-  String path = "/Reading";
+void updateDataInFirebase(String nodeID, float phValue, int waterLevel) {
+  if (nodeID.length() == 0) {
+    Serial.println("Node ID is empty");
+    return;
+  }
 
-  // Create a JSON object to hold the data
-  FirebaseJson json;
-  json.add("id", "");  // Placeholder for the unique ID
-  json.add("waterPercentage", waterLevel);
-  json.add("phValue", phValue);
+  String pathWater = "/Reading/" + nodeID + "/waterPercentage";
+  String pathPH = "/Reading/" + nodeID + "/phValue";
 
-  // Push the JSON object to Firebase under the "Readings" parent node
-  if (Firebase.pushJSON(firebaseData, path, json)) {
-    // If the push was successful, get the unique identifier
-    String uniqueID = firebaseData.pushName();
-
-    // Update the JSON object with the actual unique ID
-    json.clear();
-    json.add("id", uniqueID);
-    json.add("waterPercentage", waterLevel);
-    json.add("phValue", phValue);
-
-    // Set the updated JSON object to Firebase under the generated uniqueID
-    if (Firebase.setJSON(firebaseData, path + "/" + uniqueID, json)) {
-      Serial.println("Data pushed to Firebase successfully");
-    } else {
-      Serial.println("Failed to push data to Firebase");
-      Serial.println("Error: " + firebaseData.errorReason());
-    }
+  if (Firebase.setInt(firebaseData, pathWater, waterLevel)) {
+    Serial.println("Water percentage updated successfully");
   } else {
-    Serial.println("Failed to push data to Firebase");
+    Serial.println("Failed to update water percentage");
+    Serial.println("Error: " + firebaseData.errorReason());
+  }
+
+  if (Firebase.setFloat(firebaseData, pathPH, phValue)) {
+    Serial.println("pH value updated successfully");
+  } else {
+    Serial.println("Failed to update pH value");
     Serial.println("Error: " + firebaseData.errorReason());
   }
 }
